@@ -1,2 +1,2 @@
 # simple-chess
-simple chess AI for http://chessboardjs.com/
+simple and effective chess AI for http://chessboardjs.com/
