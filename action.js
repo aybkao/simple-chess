@@ -1,4 +1,6 @@
-var board, game = new Chess(), statusEl = $('#status'), fenEl = $('#fen'), pgnEl = $('#pgn');
+
+// depth = 2 minimax 
+
 
 const calculatePieceValue = (pieceType, color) => {
   var score;
@@ -75,7 +77,7 @@ const calculatePositionValue = (pieceType, color, i, j, numRounds) => {
                     [ 20, 30, 10,  0,  0, 10, 30, 20]];
       break;
   }
-  // end game strategy for king
+  // late game strategy for king
   if (pieceType == 'k' & numRounds > 20) {
     chessTable = [[-50,-40,-30,-20,-20,-30,-40,-50],
                   [-30,-20,-10,  0,  0,-10,-20,-30],
@@ -93,8 +95,7 @@ const calculatePositionValue = (pieceType, color, i, j, numRounds) => {
   return positionValue;
 }
 
-// black wants to lower total value
-// implement end game strategy later
+// AI looks for move with lowest total board value
 const sumBoardValue = (board, numRounds) => {
   let value = 0;
   for (let i = 0; i < 8; i++) {
@@ -102,6 +103,7 @@ const sumBoardValue = (board, numRounds) => {
       if (board[i][j]) {
         value += calculatePieceValue(board[i][j]['type'], board[i][j]['color']);
         if (['r', 'q'].indexOf(board[i][j]['type']) === -1) {
+          // no special late game strategy for now
           value += calculatePositionValue(board[i][j]['type'], board[i][j]['color'], i, j, 10);
         }
       }
@@ -127,7 +129,7 @@ const indexOfMin = (arr) => {
 }
 
 
-// sort from small to large
+// sort tuple values from small to large
 const sortBySecondElement = (a, b) => {
   if (a[1] === b[1]) {
     return 0;
@@ -142,23 +144,19 @@ const findBestMove = (depth) => {
   let possibleMovesBlack = game.moves();  
   
   for (let k = 0; k < possibleMovesBlack.length; k++) {
-    // move piece to potential position 
     game.move(possibleMovesBlack[k]);
-    // calculate potential value after move
     let valueAfterBlackMove = sumBoardValue(game.board());
-    // add to all results
     valueAfterOnePly.push([possibleMovesBlack[k], valueAfterBlackMove]);
     game.undo();
   }
   
   valueAfterOnePly.sort(sortBySecondElement);
-  //console.log("black potential moves sorted by value: ", valueAfterOnePly)
+
   let lowestValue = Infinity;
   let whiteMoveValuesOnly = [];
   let whiteMoveAndValue = [];
 
   for (let s = 0; s < valueAfterOnePly.length; s++) {
-    
     if (valueAfterOnePly[s][1] > lowestValue) {
       break;
     }
@@ -195,18 +193,21 @@ const findBestMove = (depth) => {
 }
 
 
+//******************** manage board and render ********************
 
+let board, game = new Chess(); 
+const statusEl = $('#status'); 
+const fenEl = $('#fen');
+const pgnEl = $('#pgn');
 
-
-
-//******************** manage chess moves and render ********************
 var onDragStart = function(source, piece, position, orientation) {
   if (game.game_over() === true ||
      (game.turn() === 'w' && piece.search(/^b/) !== -1) ||
      (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
     return false;
   } 
-};
+}
+
 var onDrop = function(source, target) {
   //check if move is legal
   var move = game.move({
@@ -214,10 +215,17 @@ var onDrop = function(source, target) {
     to: target,
     promotion: 'q' // NOTE: always promote to a queen for example simplicity
   });
+  
   // illegal move
   if (move === null) return 'snapback';
+  
   updateStatus();
+  
   if (game.turn() === 'b') {
+    if (game.in_checkmate()) {
+      updateStatus();
+      return;
+    }
     let bestMove = findBestMove();
     //console.log("best move: ", bestMove);
     game.move(bestMove);
@@ -226,16 +234,20 @@ var onDrop = function(source, target) {
     updateStatus();
   }
 };
+
 // update board position after piecesnap for castling, en passant, promotion
 var onSnapEnd = function() {
   board.position(game.fen());
 };
+
 var updateStatus = function() {
   var status = '';
   var moveColor = 'White';
+  
   if (game.turn() === 'b') {
     moveColor = 'Black';
   }
+  
   if (game.in_checkmate() === true) {
     // checkmate?
     status = 'Game over, ' + moveColor + ' is in checkmate.';
@@ -249,10 +261,12 @@ var updateStatus = function() {
       status += ', ' + moveColor + ' is in check';
     }
   }
+  
   statusEl.html(status);
   fenEl.html(game.fen());
   pgnEl.html(game.pgn());
 };
+
 var cfg = {
   draggable: true,
   position: 'start',
@@ -260,6 +274,7 @@ var cfg = {
   onDrop: onDrop,
   onSnapEnd: onSnapEnd
 };
+
 board = ChessBoard('board', cfg);
 updateStatus();
 
@@ -269,6 +284,7 @@ String.prototype.replaceAll = function(search, replacement) {
     var target = this;
     return target.replace(new RegExp(search, 'g'), replacement);
 };
+
 const boardArrayToFen = (boardArray, special) => {  
   let nextFen = '';
   boardArray.forEach((pos) => {
